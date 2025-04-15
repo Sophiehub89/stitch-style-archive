@@ -1,7 +1,6 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { getAllTutorials, getTutorialBySlug } from '@/data/tutorials';
 import { Tutorial } from '@/types';
 import Navbar from '@/components/Navbar';
@@ -15,29 +14,38 @@ import { Check } from 'lucide-react';
 const TutorialDetail = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  
-  // Fetch the tutorial
-  const { data: tutorial, isLoading: isTutorialLoading } = useQuery({
-    queryKey: ['tutorial', slug],
-    queryFn: () => getTutorialBySlug(slug || ''),
-    enabled: !!slug
-  });
-  
-  // Fetch all tutorials for navigation
-  const { data: allTutorials = [] } = useQuery({
-    queryKey: ['tutorials'],
-    queryFn: getAllTutorials
-  });
-  
-  // Find previous and next tutorials
-  const currentIndex = allTutorials.findIndex(t => t.slug === slug);
-  const prevTutorial = currentIndex > 0 ? allTutorials[currentIndex - 1] : undefined;
-  const nextTutorial = currentIndex < allTutorials.length - 1 ? allTutorials[currentIndex + 1] : undefined;
+  const [tutorial, setTutorial] = useState<Tutorial | null>(null);
+  const [prevTutorial, setPrevTutorial] = useState<Tutorial | undefined>(undefined);
+  const [nextTutorial, setNextTutorial] = useState<Tutorial | undefined>(undefined);
   
   useEffect(() => {
     if (!slug) {
       navigate('/');
       return;
+    }
+    
+    const currentTutorial = getTutorialBySlug(slug);
+    if (!currentTutorial) {
+      navigate('/not-found');
+      return;
+    }
+    
+    setTutorial(currentTutorial);
+    
+    // Set up previous and next tutorials for navigation
+    const allTutorials = getAllTutorials();
+    const currentIndex = allTutorials.findIndex(t => t.id === currentTutorial.id);
+    
+    if (currentIndex > 0) {
+      setPrevTutorial(allTutorials[currentIndex - 1]);
+    } else {
+      setPrevTutorial(undefined);
+    }
+    
+    if (currentIndex < allTutorials.length - 1) {
+      setNextTutorial(allTutorials[currentIndex + 1]);
+    } else {
+      setNextTutorial(undefined);
     }
     
     // Scroll to top when tutorial changes
@@ -49,34 +57,8 @@ const TutorialDetail = () => {
     navigate(`/?search=${encodeURIComponent(query)}`);
   };
   
-  // Show loading state
-  if (isTutorialLoading) {
-    return (
-      <div className="flex min-h-screen flex-col">
-        <Navbar onSearch={handleSearch} />
-        <main className="flex-1">
-          <div className="container py-8">
-            <div className="mx-auto max-w-4xl">
-              <div className="h-8 bg-muted rounded animate-pulse mb-4 w-1/3"></div>
-              <div className="h-12 bg-muted rounded animate-pulse mb-8 w-2/3"></div>
-              <div className="h-64 bg-muted rounded animate-pulse mb-8"></div>
-              <div className="space-y-4">
-                {[1, 2, 3, 4].map(i => (
-                  <div key={i} className="h-6 bg-muted rounded animate-pulse"></div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
-  
-  // Show not found
   if (!tutorial) {
-    navigate('/not-found');
-    return null;
+    return null; // Or a loading state
   }
   
   return (
