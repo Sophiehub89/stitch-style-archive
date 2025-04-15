@@ -1,6 +1,108 @@
 
+import { supabase } from "@/integrations/supabase/client";
 import { Tutorial, Category, Tag } from '@/types';
 
+export const getAllTutorials = async (): Promise<Tutorial[]> => {
+  const { data, error } = await supabase
+    .from('tutorials')
+    .select('*');
+  
+  if (error) {
+    console.error('Error fetching tutorials:', error);
+    return [];
+  }
+  
+  return data as Tutorial[];
+};
+
+export const getTutorialBySlug = async (slug: string): Promise<Tutorial | undefined> => {
+  const { data, error } = await supabase
+    .from('tutorials')
+    .select('*')
+    .eq('slug', slug)
+    .single();
+  
+  if (error) {
+    console.error('Error fetching tutorial by slug:', error);
+    return undefined;
+  }
+  
+  return data as Tutorial;
+};
+
+export const getTutorialsByCategory = async (category: Category): Promise<Tutorial[]> => {
+  const { data, error } = await supabase
+    .from('tutorials')
+    .select('*')
+    .eq('category', category);
+  
+  if (error) {
+    console.error('Error fetching tutorials by category:', error);
+    return [];
+  }
+  
+  return data as Tutorial[];
+};
+
+export const getTutorialsByTag = async (tag: Tag): Promise<Tutorial[]> => {
+  const { data, error } = await supabase
+    .from('tutorials')
+    .select('*')
+    .filter('tags', 'cs', `{${tag}}`);
+  
+  if (error) {
+    console.error('Error fetching tutorials by tag:', error);
+    return [];
+  }
+  
+  return data as Tutorial[];
+};
+
+export const getAllCategories = async (): Promise<Category[]> => {
+  const { data, error } = await supabase
+    .from('tutorials')
+    .select('category');
+  
+  if (error) {
+    console.error('Error fetching categories:', error);
+    return [];
+  }
+  
+  const categories = [...new Set(data.map(item => item.category))];
+  return categories as Category[];
+};
+
+export const getAllTags = async (): Promise<Tag[]> => {
+  const { data, error } = await supabase
+    .from('tutorials')
+    .select('tags');
+  
+  if (error) {
+    console.error('Error fetching tags:', error);
+    return [];
+  }
+  
+  const allTags = data.flatMap(item => item.tags);
+  return [...new Set(allTags)] as Tag[];
+};
+
+export const searchTutorials = async (query: string): Promise<Tutorial[]> => {
+  const lowerCaseQuery = query.toLowerCase();
+  
+  const { data, error } = await supabase
+    .from('tutorials')
+    .select('*')
+    .or(`title.ilike.%${lowerCaseQuery}%,description.ilike.%${lowerCaseQuery}%,category.ilike.%${lowerCaseQuery}%`);
+  
+  if (error) {
+    console.error('Error searching tutorials:', error);
+    return [];
+  }
+  
+  return data as Tutorial[];
+};
+
+// Fallback mock data for development in case the database is not available
 export const tutorials: Tutorial[] = [
   {
     id: '1',
@@ -187,38 +289,3 @@ export const tutorials: Tutorial[] = [
     createdAt: '2023-09-03'
   }
 ];
-
-export const getAllTutorials = (): Tutorial[] => {
-  return tutorials;
-};
-
-export const getTutorialBySlug = (slug: string): Tutorial | undefined => {
-  return tutorials.find(tutorial => tutorial.slug === slug);
-};
-
-export const getTutorialsByCategory = (category: Category): Tutorial[] => {
-  return tutorials.filter(tutorial => tutorial.category === category);
-};
-
-export const getTutorialsByTag = (tag: Tag): Tutorial[] => {
-  return tutorials.filter(tutorial => tutorial.tags.includes(tag));
-};
-
-export const getAllCategories = (): Category[] => {
-  return Array.from(new Set(tutorials.map(tutorial => tutorial.category))) as Category[];
-};
-
-export const getAllTags = (): Tag[] => {
-  const allTags = tutorials.flatMap(tutorial => tutorial.tags);
-  return Array.from(new Set(allTags)) as Tag[];
-};
-
-export const searchTutorials = (query: string): Tutorial[] => {
-  const lowerCaseQuery = query.toLowerCase();
-  return tutorials.filter(tutorial => 
-    tutorial.title.toLowerCase().includes(lowerCaseQuery) ||
-    tutorial.description.toLowerCase().includes(lowerCaseQuery) ||
-    tutorial.category.toLowerCase().includes(lowerCaseQuery) ||
-    tutorial.tags.some(tag => tag.toLowerCase().includes(lowerCaseQuery))
-  );
-};

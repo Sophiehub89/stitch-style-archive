@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
+import { useQuery } from '@tanstack/react-query';
 import { 
   getAllTutorials, 
   getAllCategories, 
@@ -14,32 +15,72 @@ import Navbar from '@/components/Navbar';
 import FilterBar from '@/components/FilterBar';
 import TutorialGrid from '@/components/TutorialGrid';
 import Footer from '@/components/Footer';
-import { Tutorial } from '@/types';
+import { Tutorial, Category, Tag } from '@/types';
+import { Button } from '@/components/ui/button';
+import { PlusCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const Index = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const queryParams = new URLSearchParams(location.search);
   
-  const [tutorials, setTutorials] = useState<Tutorial[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(
+    queryParams.get('category') as Category | null
+  );
+  const [selectedTag, setSelectedTag] = useState<Tag | null>(
+    queryParams.get('tag') as Tag | null
+  );
+  const [searchQuery, setSearchQuery] = useState<string>(
+    queryParams.get('search') || ''
+  );
   const [filteredTutorials, setFilteredTutorials] = useState<Tutorial[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(
-    queryParams.get('category')
-  );
-  const [selectedTag, setSelectedTag] = useState<string | null>(
-    queryParams.get('tag')
-  );
-  const [searchQuery, setSearchQuery] = useState<string>('');
   
-  useEffect(() => {
-    setTutorials(getAllTutorials());
-  }, []);
+  // Fetch all tutorials
+  const { data: tutorials = [], isLoading: isTutorialsLoading } = useQuery({
+    queryKey: ['tutorials'],
+    queryFn: getAllTutorials
+  });
+  
+  // Fetch categories
+  const { data: categories = [], isLoading: isCategoriesLoading } = useQuery({
+    queryKey: ['categories'],
+    queryFn: getAllCategories
+  });
+  
+  // Fetch tags
+  const { data: tags = [], isLoading: isTagsLoading } = useQuery({
+    queryKey: ['tags'],
+    queryFn: getAllTags
+  });
+  
+  // Fetch tutorials by category
+  const { data: categoryTutorials = [] } = useQuery({
+    queryKey: ['tutorials', 'category', selectedCategory],
+    queryFn: () => selectedCategory ? getTutorialsByCategory(selectedCategory) : Promise.resolve([]),
+    enabled: !!selectedCategory
+  });
+  
+  // Fetch tutorials by tag
+  const { data: tagTutorials = [] } = useQuery({
+    queryKey: ['tutorials', 'tag', selectedTag],
+    queryFn: () => selectedTag ? getTutorialsByTag(selectedTag as Tag) : Promise.resolve([]),
+    enabled: !!selectedTag
+  });
+  
+  // Search tutorials
+  const { data: searchResults = [] } = useQuery({
+    queryKey: ['tutorials', 'search', searchQuery],
+    queryFn: () => searchQuery ? searchTutorials(searchQuery) : Promise.resolve([]),
+    enabled: !!searchQuery
+  });
   
   useEffect(() => {
     // Update URL with current filters
     const params = new URLSearchParams();
     if (selectedCategory) params.set('category', selectedCategory);
     if (selectedTag) params.set('tag', selectedTag);
+    if (searchQuery) params.set('search', searchQuery);
     
     const newSearch = params.toString();
     const newUrl = newSearch ? `?${newSearch}` : '';
@@ -51,28 +92,50 @@ const Index = () => {
     // Apply filters
     let results = tutorials;
     
-    if (selectedCategory && selectedCategory !== 'all') {
-      results = getTutorialsByCategory(selectedCategory);
+    if (selectedCategory) {
+      results = categoryTutorials;
     }
     
     if (selectedTag) {
-      results = results.filter(tutorial => tutorial.tags.includes(selectedTag));
+      // If we already filtered by category, we need to find the intersection
+      if (selectedCategory) {
+        results = results.filter(tutorial => 
+          tagTutorials.some(t => t.id === tutorial.id)
+        );
+      } else {
+        results = tagTutorials;
+      }
     }
     
     if (searchQuery) {
-      results = searchTutorials(searchQuery).filter(tutorial => 
-        results.some(r => r.id === tutorial.id)
-      );
+      // If we already filtered by category or tag, we need to find the intersection
+      if (selectedCategory || selectedTag) {
+        results = results.filter(tutorial => 
+          searchResults.some(t => t.id === tutorial.id)
+        );
+      } else {
+        results = searchResults;
+      }
     }
     
     setFilteredTutorials(results);
-  }, [tutorials, selectedCategory, selectedTag, searchQuery, location.search, navigate]);
+  }, [
+    tutorials,
+    selectedCategory,
+    selectedTag,
+    searchQuery,
+    location.search,
+    navigate,
+    categoryTutorials,
+    tagTutorials,
+    searchResults
+  ]);
   
-  const handleCategoryChange = (category: string | null) => {
+  const handleCategoryChange = (category: Category | null) => {
     setSelectedCategory(category);
   };
   
-  const handleTagChange = (tag: string | null) => {
+  const handleTagChange = (tag: Tag | null) => {
     setSelectedTag(tag);
   };
   
@@ -85,6 +148,8 @@ const Index = () => {
     setSelectedTag(null);
     setSearchQuery('');
   };
+  
+  const isLoading = isTutorialsLoading || isCategoriesLoading || isTagsLoading;
   
   return (
     <>
@@ -109,18 +174,27 @@ const Index = () => {
         <main className="flex-1">
           <div className="container py-8">
             <div className="space-y-6">
-              <div className="space-y-2">
-                <h1 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
-                  Discover Beautiful Crochet Patterns
-                </h1>
-                <p className="text-lg text-muted-foreground">
-                  Browse our collection of free, high-quality crochet patterns and tutorials
-                </p>
+              <div className="flex justify-between items-center">
+                <div className="space-y-2">
+                  <h1 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
+                    Discover Beautiful Crochet Patterns
+                  </h1>
+                  <p className="text-lg text-muted-foreground">
+                    Browse our collection of free, high-quality crochet patterns and tutorials
+                  </p>
+                </div>
+                
+                <Link to="/import">
+                  <Button className="gap-2">
+                    <PlusCircle className="h-4 w-4" />
+                    Import Patterns
+                  </Button>
+                </Link>
               </div>
               
               <FilterBar
-                categories={getAllCategories()}
-                tags={getAllTags()}
+                categories={categories}
+                tags={tags}
                 selectedCategory={selectedCategory}
                 selectedTag={selectedTag}
                 onCategoryChange={handleCategoryChange}
@@ -128,7 +202,13 @@ const Index = () => {
                 onReset={handleResetFilters}
               />
               
-              {filteredTutorials.length > 0 ? (
+              {isLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {[1, 2, 3, 4, 5, 6].map(i => (
+                    <div key={i} className="rounded-lg border animate-pulse bg-muted h-80"></div>
+                  ))}
+                </div>
+              ) : filteredTutorials.length > 0 ? (
                 <TutorialGrid tutorials={filteredTutorials} />
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -136,12 +216,13 @@ const Index = () => {
                   <p className="text-muted-foreground mt-1">
                     Try adjusting your filters or search query
                   </p>
-                  <button
+                  <Button
                     onClick={handleResetFilters}
-                    className="mt-4 inline-flex items-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
+                    className="mt-4"
+                    variant="outline"
                   >
                     Reset all filters
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>

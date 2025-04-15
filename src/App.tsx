@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import TutorialDetail from "./pages/TutorialDetail";
 import About from "./pages/About";
 import NotFound from "./pages/NotFound";
+import Import from "./pages/Import";
 
 const queryClient = new QueryClient();
 
@@ -23,6 +24,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/tutorial/:slug" element={<TutorialDetail />} />
             <Route path="/about" element={<About />} />
+            <Route path="/import" element={<Import />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
