@@ -14,7 +14,7 @@ import Navbar from '@/components/Navbar';
 import FilterBar from '@/components/FilterBar';
 import TutorialGrid from '@/components/TutorialGrid';
 import Footer from '@/components/Footer';
-import { Tutorial } from '@/types';
+import { Tutorial, Category } from '@/types';
 
 const Index = () => {
   const location = useLocation();
@@ -52,7 +52,14 @@ const Index = () => {
     let results = tutorials;
     
     if (selectedCategory && selectedCategory !== 'all') {
-      results = getTutorialsByCategory(selectedCategory);
+      // Cast the selectedCategory to Category type only when we're sure it's a valid category
+      const validCategory = getAllCategories().includes(selectedCategory as Category) 
+        ? selectedCategory as Category 
+        : null;
+        
+      if (validCategory) {
+        results = getTutorialsByCategory(validCategory);
+      }
     }
     
     if (selectedTag) {
